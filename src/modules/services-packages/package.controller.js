@@ -16,6 +16,7 @@ export const createPackage = catchAsync(async (req, res) => {
 
     const newPackage = await Package.create({
         ...parsed.data,
+        paymentLink: "",
         status: "active"   // ["active", "draft"]
     });
 

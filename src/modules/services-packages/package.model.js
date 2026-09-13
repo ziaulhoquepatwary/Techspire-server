@@ -71,6 +71,10 @@ const packageSchema = new Schema(
             enum: ["active", "draft"],
             default: "active",
         },
+        paymentLink: {
+            type: String,
+            required: true,
+        },
     },
     {
         timestamps: true,
