@@ -1,11 +1,9 @@
-import Stripe from "stripe";
 import mongoose from "mongoose";
 import catchAsync from "../../utils/catchAsync.js";
 import Order from "./order.model.js";
 import Package from "../services-packages/package.model.js";
 import AppError from "../../utils/AppError.js";
 import { sendOrderConfirmationEmail } from "./sendOrderEmail.js";
-
 
 export const createPendingOrder = catchAsync(async (req, res) => {
     const { orderId, packageId, title, price, image, userId, userName, userEmail } = req.body;
@@ -27,7 +25,7 @@ export const createPendingOrder = catchAsync(async (req, res) => {
         ? new mongoose.Types.ObjectId(packageId)
         : packageId;
 
-    // Create Order with default 'pending' status
+    // Create Order
     const newOrder = await Order.create({
         orderId,
         packageId: validPackageId,
@@ -50,69 +48,8 @@ export const createPendingOrder = catchAsync(async (req, res) => {
     });
 });
 
-export const handleStripeWebhook = catchAsync(async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-    let event;
-
-    try {
-        event = stripe.webhooks.constructEvent(
-            req.body, // This MUST be raw buffer
-            sig,
-            process.env.STRIPE_WEBHOOK_SECRET
-        );
-    } catch (err) {
-        console.error("Webhook Signature Verification Failed:", err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === "checkout.session.completed") {
-        const session = event.data.object;
-        console.log("Stripe Session Completed for ID:", session.id);
-
-        const { orderId } = session.metadata || {};
-        const stripeSessionId = session.id;
-        const paymentIntentId = session.payment_intent;
-        const customerEmail = session.customer_details?.email || session.customer_email;
-        const customerName = session.customer_details?.name;
-
-        if (!orderId) {
-            console.error("Missing orderId in session metadata");
-            return res.status(400).send("Missing orderId");
-        }
-
-        // Find the pending order
-        const existingOrder = await Order.findOne({ orderId });
-        if (!existingOrder) {
-            console.error(`Pending order not found with ID: ${orderId}`);
-            return res.status(404).send("Order not found");
-        }
-
-
-        existingOrder.paymentStatus = "paid";
-        existingOrder.status = "processing";
-        existingOrder.stripeSessionId = stripeSessionId;
-        existingOrder.paymentIntentId = String(paymentIntentId || "");
-
-        if (!existingOrder.userEmail && customerEmail) {
-            existingOrder.userEmail = customerEmail;
-        }
-        if (existingOrder.userName === "Customer" && customerName) {
-            existingOrder.userName = customerName;
-        }
-
-        await existingOrder.save();
-        console.log("Order successfully updated to PAID! DB ID:", existingOrder._id);
-    }
-
-    res.status(200).json({
-        success: true,
-        message: "Webhook event processed and order status updated successfully",
-    });
-});
-
 export const getMyOrders = catchAsync(async (req, res) => {
-    const userEmail = req.user.email; // userId এর পরিবর্তে userEmail
+    const userEmail = req.user.email;
     const { page = 1, limit = 10 } = req.query;
 
     const pageNumber = Math.max(1, parseInt(page));
@@ -256,19 +193,6 @@ export const cancelOrder = catchAsync(async (req, res) => {
         );
     }
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
-    const session = await stripe.checkout.sessions.retrieve(order.stripeSessionId);
-
-    if (!session || !session.payment_intent) {
-        throw new AppError(400, "No valid payment intent found for this order to issue a refund");
-    }
-
-    await stripe.refunds.create({
-        payment_intent: session.payment_intent,
-        reason: 'requested_by_customer'
-    });
-
     order.status = 'cancelled';
     order.paymentStatus = 'refunded';
 
@@ -276,7 +200,7 @@ export const cancelOrder = catchAsync(async (req, res) => {
 
     res.status(200).json({
         success: true,
-        message: "Order cancelled and refunded successfully",
+        message: "Order status marked as cancelled",
         data: order
     });
 });
