@@ -10,7 +10,6 @@ import AdminRoute from "./modules/admin/admin.route.js";
 import emailRoute from "./modules/emailSender/email.route.js";
 import dashboardRoute from "./modules/dashboard/dashboard.route.js";
 import QuotationRoute from "./modules/quotation/quotation.route.js";
-import { keepServerAlive } from "./keepAlive.js";
 
 const createApp = (auth) => {
     const app = express();
@@ -41,9 +40,6 @@ const createApp = (auth) => {
     app.get("/", (req, res) => {
         res.send("M traders server is running successfully");
     });
-
-    const backendUrl = process.env.BETTER_AUTH_URL || "http://localhost:5000";
-    keepServerAlive(backendUrl);
 
     return app;
 }
