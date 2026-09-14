@@ -55,4 +55,8 @@ export const packageValidationSchema = z.object({
     requirements: z
         .array(z.string().trim().min(1, "Requirement cannot be empty."))
         .default([]),
+    paymentLink: z
+        .string()
+        .trim()
+        .optional()
 });

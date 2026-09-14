@@ -74,6 +74,7 @@ const packageSchema = new Schema(
         paymentLink: {
             type: String,
             required: true,
+            default: "",
         },
     },
     {
